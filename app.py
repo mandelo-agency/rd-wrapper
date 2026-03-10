@@ -5,6 +5,8 @@ import requests
 from flask import Flask, request, jsonify, send_file
 from pdf2image import convert_from_bytes
 from concurrent.futures import ThreadPoolExecutor
+from PIL import Image
+import datetime
 
 app = Flask(__name__)
 
@@ -54,15 +56,37 @@ def pdf_pages():
         except Exception as e:
             return jsonify({'error': f'Fout bij verwerken: {str(e)}'}), 500
 
-    # URLs teruggeven per pagina
+    # URLs teruggeven per pagina als Plate image object
     base_url = request.host_url.rstrip('/')
-    results = [
-        {
-            'page': i + 1,
-            'src': f'{base_url}/page/{url_hash}/{i + 1}.jpg'
-        }
-        for i in range(len(cache[url_hash]))
-    ]
+    results = []
+
+    for i, img_bytes in enumerate(cache[url_hash]):
+        # Afmetingen ophalen
+        img = Image.open(io.BytesIO(img_bytes))
+        width, height = img.size
+        aspect_ratio = width / height
+        landscape = width > height
+        src = f'{base_url}/page/{url_hash}/{i + 1}.jpg'
+        file_uid = f'{url_hash}_page_{i + 1}.jpg'
+
+        results.append({
+            'id': i + 1,
+            'created_at': datetime.datetime.now().isoformat(),
+            'src': src,
+            'file_uid': file_uid,
+            'meta': {
+                'mime_type': 'image/jpeg',
+                'file_size': len(img_bytes),
+                'ext': 'jpg',
+                'alt': None,
+                'title': None,
+                'format': 'jpeg',
+                'width': width,
+                'height': height,
+                'aspect_ratio': aspect_ratio,
+                'landscape': landscape
+            }
+        })
 
     return jsonify(results)
 

@@ -94,7 +94,7 @@ def pdf_pages():
 @app.route('/page/<url_hash>/<int:page_num>.jpg', methods=['GET'])
 def serve_page(url_hash, page_num):
     if url_hash not in cache or page_num < 1 or page_num > len(cache[url_hash]):
-        return 'Niet gevonden', 404
+        return 'Niet gevonden f', 404
 
     img_bytes = cache[url_hash][page_num - 1]
     return send_file(io.BytesIO(img_bytes), mimetype='image/jpeg')

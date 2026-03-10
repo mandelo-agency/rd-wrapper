@@ -1,2 +1,2 @@
 [phases.setup]
-nixPkgs = ["poppler_utils"]
+nixPkgs = ["poppler_utils", "poppler"]

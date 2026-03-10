@@ -3,9 +3,19 @@ import io
 import requests
 from flask import Flask, request, jsonify
 from pdf2image import convert_from_bytes
+from concurrent.futures import ThreadPoolExecutor
 import base64
 
 app = Flask(__name__)
+
+def convert_page(args):
+    page, i = args
+    buffer = io.BytesIO()
+    page.save(buffer, format='JPEG', quality=80)
+    return {
+        'page': i + 1,
+        'image': f'data:image/jpeg;base64,{base64.b64encode(buffer.getvalue()).decode()}'
+    }
 
 @app.route('/pdf-pages', methods=['GET'])
 def pdf_pages():
@@ -19,20 +29,20 @@ def pdf_pages():
         response = requests.get(pdf_url, timeout=30)
         response.raise_for_status()
 
-        # Elke pagina omzetten naar JPG
-        pages = convert_from_bytes(response.content, dpi=150, fmt='jpeg')
+        # Alle paginas tegelijk converteren met lage DPI voor snelheid
+        pages = convert_from_bytes(
+            response.content,
+            dpi=120,          # lager = sneller
+            fmt='jpeg',
+            thread_count=6,   # meerdere threads tegelijk
+            use_pdftocairo=True  # sneller dan pdftoppm
+        )
 
-        result = []
-        for i, page in enumerate(pages):
-            buffer = io.BytesIO()
-            page.save(buffer, format='JPEG', quality=85)
-            img_base64 = base64.b64encode(buffer.getvalue()).decode('utf-8')
-            result.append({
-                'page': i + 1,
-                'image': f'data:image/jpeg;base64,{img_base64}'
-            })
+        # Paginas parallel verwerken
+        with ThreadPoolExecutor(max_workers=6) as executor:
+            results = list(executor.map(convert_page, [(page, i) for i, page in enumerate(pages)]))
 
-        return jsonify(result)
+        return jsonify(results)
 
     except requests.RequestException as e:
         return jsonify({'error': f'PDF kon niet worden opgehaald: {str(e)}'}), 500
